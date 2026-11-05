@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Precificação de Marmitas</title>
+    <!-- Importando a biblioteca do Supabase para o Frontend -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: Arial, sans-serif; background-color: #f4f6f8; margin: 0; padding: 20px; color: #333; }
         .container { max-width: 700px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
@@ -115,6 +117,11 @@
 </div>
 
 <script>
+    const SUPABASE_URL = "https://ralqwrxkxdscuvzgawew.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_afWq-TrdTZYeo4jEIQUjdw_tV8FzXDN";
+    
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
     let ingredientesDaReceita = [];
 
     function ehUnidade(texto) {
@@ -165,34 +172,31 @@
     }
 
     async function salvarCompra() {
-        const item = document.getElementById('compraItem').value;
-        const quantidadeTotal = document.getElementById('compraQtd').value;
-        const valorTotal = document.getElementById('compraValor').value;
+        const item = document.getElementById('compraItem').value.trim();
+        const quantidadeTotal = parseFloat(document.getElementById('compraQtd').value);
+        const valorTotal = parseFloat(document.getElementById('compraValor').value);
 
-        if (!item || !quantidadeTotal || !valorTotal) {
-            alert('Preencha todos os campos!');
+        if (!item || isNaN(quantidadeTotal) || isNaN(valorTotal)) {
+            alert('Preencha todos os campos corretamente!');
             return;
         }
 
-        const res = await fetch('/api/compras', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ item, quantidadeTotal, valorTotal })
-        });
-        const data = await res.json();
-        
-        if (res.ok) {
-            alert(data.mensagem);
+        const { error } = await supabaseClient
+            .from('compras')
+            .insert([{ item, quantidade_total: quantidadeTotal, valor_total: valorTotal }]);
+
+        if (error) {
+            alert('Erro ao salvar compra: ' + error.message);
+        } else {
+            alert('Compra salva com sucesso!');
             document.getElementById('compraItem').value = '';
             document.getElementById('compraQtd').value = '';
             document.getElementById('compraValor').value = '';
-        } else {
-            alert(data.erro);
         }
     }
 
     function adicionarIngrediente() {
-        const nome = document.getElementById('ingredienteNome').value;
+        const nome = document.getElementById('ingredienteNome').value.trim();
         const qtd = document.getElementById('ingredienteQtd').value;
 
         if (!nome || !qtd) {
@@ -226,46 +230,82 @@
     }
 
     async function calcularMarmita() {
-        const nomeMarmita = document.getElementById('marmitaNome').value;
+        const nomeMarmita = document.getElementById('marmitaNome').value.trim();
 
         if (!nomeMarmita || ingredientesDaReceita.length === 0) {
             alert('Digite o nome da marmita e adicione pelo menos um ingrediente.');
             return;
         }
 
-        const res = await fetch('/api/marmitas/calcular', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nomeMarmita, ingredientesUsados: ingredientesDaReceita })
-        });
+        let custoTotal = 0;
+        const detalhesIngredientes = [];
 
-        const data = await res.json();
+        for (const ing of ingredientesDaReceita) {
+            const { data: compraData, error } = await supabaseClient
+                .from('compras')
+                .select('*')
+                .ilike('item', ing.item);
 
-        if (res.ok) {
-            document.getElementById('resNome').innerText = data.nomeMarmita;
-            document.getElementById('resCusto').innerText = data.custoTotal;
-            document.getElementById('resVenda').innerText = data.precoVendaSugerido;
-            document.getElementById('resultadoContainer').style.display = 'block';
-            
-            ingredientesDaReceita = [];
-            atualizarListaVisual();
-            document.getElementById('marmitaNome').value = '';
+            if (error || !compraData || compraData.length === 0) {
+                alert(`O insumo "${ing.item}" não foi encontrado na aba Compras. Cadastre-o primeiro!`);
+                return;
+            }
 
-            alert('Marmita calculada e salva com sucesso!');
-        } else {
-            alert(data.erro);
+            const itemCompra = compraData[0];
+
+            const custoUnitario = itemCompra.valor_total / itemCompra.quantidade_total;
+            const custoIngrediente = custoUnitario * ing.quantidadeUso;
+            custoTotal += custoIngrediente;
+
+            detalhesIngredientes.push({
+                item: ing.item,
+                quantidade_uso: ing.quantidadeUso,
+                custo_parcial: custoIngrediente
+            });
         }
+
+        const precoVendaSugerido = custoTotal * 1.40; // 40% de lucro
+
+        const { data: marmitaSalva, error: errMarmita } = await supabaseClient
+            .from('marmitas')
+            .insert([{
+                nome: nomeMarmita,
+                custo_total: custoTotal,
+                preco_venda: precoVendaSugerido,
+                ingredientes: detalhesIngredientes,
+                atualizado_em: new Date()
+            }])
+            .select()
+            .single();
+
+        if (errMarmita) {
+            alert('Erro ao salvar marmita: ' + errMarmita.message);
+            return;
+        }
+
+        document.getElementById('resNome').innerText = nomeMarmita;
+        document.getElementById('resCusto').innerText = custoTotal.toFixed(2);
+        document.getElementById('resVenda').innerText = precoVendaSugerido.toFixed(2);
+        document.getElementById('resultadoContainer').style.display = 'block';
+        
+        ingredientesDaReceita = [];
+        atualizarListaVisual();
+        document.getElementById('marmitaNome').value = '';
+
+        alert('Marmita calculada e salva com sucesso!');
     }
 
     async function carregarMarmitas() {
         try {
-            const response = await fetch('/api/marmitas');
-            const marmitas = await response.json();
+            const { data: marmitas, error } = await supabaseClient
+                .from('marmitas')
+                .select('*')
+                .order('atualizado_em', { ascending: false });
 
             const tbody = document.getElementById('tabelaMarmitas');
             tbody.innerHTML = '';
 
-            if (marmitas.length === 0) {
+            if (error || !marmitas || marmitas.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Nenhuma marmita cadastrada ainda.</td></tr>';
                 return;
             }
