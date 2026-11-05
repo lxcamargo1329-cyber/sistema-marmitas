@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Precificação de Marmitas</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f6f8; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 700px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h1, h2, h3 { text-align: center; color: #1a1a1a; }
+        .nav { display: flex; justify-content: space-around; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .nav button { background: none; border: none; font-size: 15px; font-weight: bold; cursor: pointer; color: #777; padding: 8px 12px; }
+        .nav button.active { color: #007AFF; border-bottom: 3px solid #007AFF; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
+        input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+        button.btn { width: 100%; padding: 12px; background: #34C759; color: #fff; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button.btn-azul { background: #007AFF; }
+        button.btn-cinza { background: #6c757d; }
+        .section { display: none; }
+        .section.active { display: block; }
+        .resultado { background: #1c1c1e; color: #fff; padding: 15px; border-radius: 8px; margin-top: 20px; }
+        .resultado h3 { color: #34C759; margin-top: 0; }
+        .lista-ingredientes { background: #f9f9f9; padding: 10px; border-radius: 6px; margin-top: 10px; border: 1px solid #eee; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 14px; }
+        th { background-color: #f8f9fa; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🍱 Sistema de Marmitas</h1>
+    
+    <div class="nav">
+        <button id="tabComprasBtn" class="active" onclick="mudarAba('compras')">🛒 Compras</button>
+        <button id="tabMarmitaBtn" onclick="mudarAba('marmita')">🍳 Montar Marmita</button>
+        <button id="tabListaBtn" onclick="mudarAba('lista')">📋 Marmitas Salvas</button>
+    </div>
+
+    <!-- TELA 1: COMPRAS -->
+    <div id="tabCompras" class="section active">
+        <h2>Cadastrar Insumo Comprado</h2>
+        <div class="form-group">
+            <label>Nome do Item (Ex: Arroz, Carne, Embalagem)</label>
+            <input type="text" id="compraItem" placeholder="Ex: Arroz" oninput="ajustarRotuloCompra()">
+        </div>
+        <div class="form-group">
+            <label id="labelCompraQtd">Quantidade Total em Gramas ou ml (Ex: 1000 para 1kg)</label>
+            <input type="number" id="compraQtd" placeholder="1000">
+        </div>
+        <div class="form-group">
+            <label>Valor Pago Total (R$)</label>
+            <input type="number" step="0.01" id="compraValor" placeholder="10.00">
+        </div>
+        <button class="btn" onclick="salvarCompra()">Salvar Compra</button>
+    </div>
+
+    <!-- TELA 2: MARMITAS -->
+    <div id="tabMarmita" class="section">
+        <h2>Montar e Precificar Marmita</h2>
+        <div class="form-group">
+            <label>Nome da Marmita</label>
+            <input type="text" id="marmitaNome" placeholder="Ex: Marmita Fit Frango">
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+        
+        <h3>Adicionar Ingredientes da Receita</h3>
+        <div class="form-group">
+            <label>Nome do Ingrediente (Ex: Arroz, Embalagem)</label>
+            <input type="text" id="ingredienteNome" placeholder="Ex: Arroz" oninput="ajustarRotuloUso()">
+        </div>
+        <div class="form-group">
+            <label id="labelIngredienteQtd">Quantidade Usada na Marmita (em gramas/ml)</label>
+            <input type="number" id="ingredienteQtd" placeholder="100">
+        </div>
+        <button class="btn btn-azul" onclick="adicionarIngrediente()">+ Adicionar à Receita</button>
+
+        <div id="listaIngredientesContainer" class="lista-ingredientes" style="display:none;">
+            <strong>Ingredientes na receita:</strong>
+            <ul id="ulIngredientes" style="margin: 5px 0; padding-left: 20px;"></ul>
+        </div>
+
+        <button class="btn" style="margin-top: 20px;" onclick="calcularMarmita()">Calcular e Salvar Marmita</button>
+
+        <div id="resultadoContainer" class="resultado" style="display: none;">
+            <h3>Resultado da Precificação</h3>
+            <p><strong>Marmita:</strong> <span id="resNome"></span></p>
+            <p>🔴 <strong>Custo de Produção:</strong> R$ <span id="resCusto"></span></p>
+            <p style="font-size: 18px; color: #34C759;">🟢 <strong>Sugestão de Venda (40% Lucro):</strong> R$ <span id="resVenda"></span></p>
+        </div>
+    </div>
+
+    <!-- TELA 3: LISTA DE MARMITAS SALVAS -->
+    <div id="tabLista" class="section">
+        <h2>Marmitas Cadastradas</h2>
+        <button class="btn btn-cinza" onclick="carregarMarmitas()" style="margin-bottom: 15px;">Atualizar Lista</button>
+        <table>
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>Custo (R$)</th>
+                    <th>Venda 40% (R$)</th>
+                    <th>Atualizado em</th>
+                </tr>
+            </thead>
+            <tbody id="tabelaMarmitas">
+                <tr>
+                    <td colspan="4" style="text-align: center;">Clique em "Atualizar Lista" para carregar.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    let ingredientesDaReceita = [];
+
+    function ehUnidade(texto) {
+        const palavrasChave = ['embalagem', 'colher', 'garfo', 'faca', 'copo', 'tampa', 'sacola', 'lacre'];
+        const termo = texto.toLowerCase();
+        return palavrasChave.some(p => termo.includes(p));
+    }
+
+    function ajustarRotuloCompra() {
+        const item = document.getElementById('compraItem').value;
+        const label = document.getElementById('labelCompraQtd');
+        if (ehUnidade(item)) {
+            label.innerText = "Quantidade Total de Unidades no Pacote/Caixa (Ex: 1000)";
+        } else {
+            label.innerText = "Quantidade Total em Gramas ou ml (Ex: 1000 para 1kg)";
+        }
+    }
+
+    function ajustarRotuloUso() {
+        const item = document.getElementById('ingredienteNome').value;
+        const label = document.getElementById('labelIngredienteQtd');
+        if (ehUnidade(item)) {
+            label.innerText = "Quantidade de Unidades Usadas (Ex: 1)";
+        } else {
+            label.innerText = "Quantidade Usada na Marmita (em gramas/ml)";
+        }
+    }
+
+    function mudarAba(aba) {
+        document.getElementById('tabCompras').classList.remove('active');
+        document.getElementById('tabMarmita').classList.remove('active');
+        document.getElementById('tabLista').classList.remove('active');
+        document.getElementById('tabComprasBtn').classList.remove('active');
+        document.getElementById('tabMarmitaBtn').classList.remove('active');
+        document.getElementById('tabListaBtn').classList.remove('active');
+
+        if (aba === 'compras') {
+            document.getElementById('tabCompras').classList.add('active');
+            document.getElementById('tabComprasBtn').classList.add('active');
+        } else if (aba === 'marmita') {
+            document.getElementById('tabMarmita').classList.add('active');
+            document.getElementById('tabMarmitaBtn').classList.add('active');
+        } else if (aba === 'lista') {
+            document.getElementById('tabLista').classList.add('active');
+            document.getElementById('tabListaBtn').classList.add('active');
+            carregarMarmitas();
+        }
+    }
+
+    async function salvarCompra() {
+        const item = document.getElementById('compraItem').value;
+        const quantidadeTotal = document.getElementById('compraQtd').value;
+        const valorTotal = document.getElementById('compraValor').value;
+
+        if (!item || !quantidadeTotal || !valorTotal) {
+            alert('Preencha todos os campos!');
+            return;
+        }
+
+        const res = await fetch('/api/compras', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ item, quantidadeTotal, valorTotal })
+        });
+        const data = await res.json();
+        
+        if (res.ok) {
+            alert(data.mensagem);
+            document.getElementById('compraItem').value = '';
+            document.getElementById('compraQtd').value = '';
+            document.getElementById('compraValor').value = '';
+        } else {
+            alert(data.erro);
+        }
+    }
+
+    function adicionarIngrediente() {
+        const nome = document.getElementById('ingredienteNome').value;
+        const qtd = document.getElementById('ingredienteQtd').value;
+
+        if (!nome || !qtd) {
+            alert('Informe o nome e a quantidade do ingrediente.');
+            return;
+        }
+
+        ingredientesDaReceita.push({ item: nome, quantidadeUso: parseFloat(qtd) });
+        
+        atualizarListaVisual();
+        document.getElementById('ingredienteNome').value = '';
+        document.getElementById('ingredienteQtd').value = '';
+    }
+
+    function atualizarListaVisual() {
+        const container = document.getElementById('listaIngredientesContainer');
+        const ul = document.getElementById('ulIngredientes');
+        ul.innerHTML = '';
+
+        if (ingredientesDaReceita.length > 0) {
+            container.style.display = 'block';
+            ingredientesDaReceita.forEach(ing => {
+                const li = document.createElement('li');
+                const sufixo = ehUnidade(ing.item) ? ' un' : 'g/ml';
+                li.innerText = `${ing.item} - ${ing.quantidadeUso}${sufixo}`;
+                ul.appendChild(li);
+            });
+        } else {
+            container.style.display = 'none';
+        }
+    }
+
+    async function calcularMarmita() {
+        const nomeMarmita = document.getElementById('marmitaNome').value;
+
+        if (!nomeMarmita || ingredientesDaReceita.length === 0) {
+            alert('Digite o nome da marmita e adicione pelo menos um ingrediente.');
+            return;
+        }
+
+        const res = await fetch('/api/marmitas/calcular', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nomeMarmita, ingredientesUsados: ingredientesDaReceita })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+            document.getElementById('resNome').innerText = data.nomeMarmita;
+            document.getElementById('resCusto').innerText = data.custoTotal;
+            document.getElementById('resVenda').innerText = data.precoVendaSugerido;
+            document.getElementById('resultadoContainer').style.display = 'block';
+            
+            ingredientesDaReceita = [];
+            atualizarListaVisual();
+            document.getElementById('marmitaNome').value = '';
+
+            alert('Marmita calculada e salva com sucesso!');
+        } else {
+            alert(data.erro);
+        }
+    }
+
+    async function carregarMarmitas() {
+        try {
+            const response = await fetch('/api/marmitas');
+            const marmitas = await response.json();
+
+            const tbody = document.getElementById('tabelaMarmitas');
+            tbody.innerHTML = '';
+
+            if (marmitas.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Nenhuma marmita cadastrada ainda.</td></tr>';
+                return;
+            }
+
+            marmitas.forEach(m => {
+                const dataFormatada = new Date(m.atualizado_em).toLocaleString('pt-BR');
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${m.nome}</strong></td>
+                    <td>R$ ${Number(m.custo_total).toFixed(2)}</td>
+                    <td style="color: #34C759; font-weight: bold;">R$ ${Number(m.preco_venda).toFixed(2)}</td>
+                    <td>${dataFormatada}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (err) {
+            console.error('Erro ao buscar marmitas:', err);
+        }
+    }
+</script>
+
+</body>
+</html>
